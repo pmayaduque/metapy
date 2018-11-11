@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from metapy.crossover_methods import uniform_crossover, one_point_crossover
+from metapy.crossover import uniform_crossover, one_point_crossover
 
 
 def test_uniform_crossover():
