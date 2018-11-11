@@ -1,1 +1,1 @@
-from metapy.algorithms.genetic_algorithm import BaseGeneticAlgorithm
+from metapy.algorithms.genetic_algorithm import GeneticAlgorithm

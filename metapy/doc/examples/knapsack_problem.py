@@ -1,12 +1,9 @@
 # TODO Show usage of Genetic algorithm on the example of the Knapsack Problem
 import numpy as np
-from metapy.algorithms import BaseGeneticAlgorithm
-from metapy.crossover import uniform_crossover
-from metapy.mutation import bit_flip_mutation
-from metapy.selection import rank_based_selection
+from metapy.algorithms import GeneticAlgorithm
 
 
-class KnapsackAlgorithm(BaseGeneticAlgorithm):
+class KnapsackAlgorithm(GeneticAlgorithm):
     def __init__(self):
         super().__init__(generations=20, mutation_rate=0.1, selection_size=10, elitism=0, minimize=False)
         self.population = [np.random.randint(0, 2, 10) for i in range(10)]
@@ -30,13 +27,13 @@ class KnapsackAlgorithm(BaseGeneticAlgorithm):
         return fitness
     
     def crossover(self, candidates):
-        return uniform_crossover(candidates)
+        return self.uniform_crossover(candidates)
 
     def mutation(self, candidate):
-        return bit_flip_mutation(candidate)
+        return self.bit_flip_mutation(candidate)
     
     def selection(self, fitness):
-        return rank_based_selection(self.population, fitness, self.selection_size, reverse=True, number_of_parents=2)
+        return self.rank_based_selection(fitness, number_of_parents=2)
 
 
 def main():
