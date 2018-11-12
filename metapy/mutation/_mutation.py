@@ -46,3 +46,22 @@ def swap_mutation(candidate):
     new_candidate[idx_a] = itm_b
     new_candidate[idx_b] = itm_a
     return new_candidate
+
+
+def gauss_mutation(candidate, low=None, high=None):
+    """Adds normal distributed random numbers to the candidate. If not None, values are clipped to lower and upper bounds.
+    
+    Args:
+        candidate (Vector): chromosome
+        low (Vector, optional): Defaults to None. lower bound, length equal to candidate length
+        high (Vector, optional): Defaults to None. upper bound, length equal to candidate length
+    
+    Returns:
+        Vector: mutated chromosome
+    """
+
+    new_candidate = np.copy(candidate)
+    new_candidate += np.random.randn(len(candidate))
+    new_candidate = np.clip(new_candidate, low, high)
+
+    return new_candidate

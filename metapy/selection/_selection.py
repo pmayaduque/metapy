@@ -2,7 +2,7 @@ import random
 import numpy as np
 
 
-def sample_from_fittest(population, fitness, size, survival_rate, minimize=False, number_of_parents=2):
+def sample_from_fittest(population, fitness, size, survival_rate, minimize=True, number_of_parents=2):
     """Sorts population by the fitness value and samples parents randomly from the fittest chromosomes.
     
     Args:
@@ -25,7 +25,7 @@ def sample_from_fittest(population, fitness, size, survival_rate, minimize=False
     return parents
 
 
-def rank_based_selection(population, fitness, size, minimize=False, number_of_parents=2):
+def rank_based_selection(population, fitness, size, minimize=True, number_of_parents=2):
     """Sorts population by fitness and then selects parents with a probability according to their rank. Better parents have higher probability
     
     Args:
