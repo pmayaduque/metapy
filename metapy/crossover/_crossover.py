@@ -33,3 +33,21 @@ def one_point_crossover(candidates):
     intersection_point = np.random.randint(0, len(candidates[0]))
     new_candidate = np.hstack((candidates[0][:intersection_point], candidates[1][intersection_point:]))
     return new_candidate
+
+def arithmetic_crossover(candidates, extrapolate=False):
+    """TODO Add Docstring here
+    
+    Args:
+        candidates ([type]): [description]
+        extrapolate (bool, optional): Defaults to False. [description]
+    
+    Returns:
+        [type]: [description]
+    """
+
+    if extrapolate:
+        u = np.random.uniform(-1, 2)
+    else:
+        u = np.random.uniform()
+    new_candidate = u * candidates[0] + (1 - u) * candidates[1]
+    return new_candidate

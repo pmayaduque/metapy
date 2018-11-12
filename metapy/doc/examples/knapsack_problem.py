@@ -43,3 +43,6 @@ def main():
     ga = KnapsackAlgorithm()
     res = ga.optimize()
     print(res)
+
+if __name__ == '__main__':
+    main()

@@ -62,6 +62,8 @@ def gauss_mutation(candidate, low=None, high=None):
 
     new_candidate = np.copy(candidate)
     new_candidate += np.random.randn(len(candidate))
-    new_candidate = np.clip(new_candidate, low, high)
+    
+    if low is not None or high is not None:
+        new_candidate = np.clip(new_candidate, low, high)
 
     return new_candidate
