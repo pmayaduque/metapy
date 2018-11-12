@@ -17,7 +17,7 @@ def test_sample_from_fittest():
     for unselected in population[2:]:
         assert unselected not in selected_chromosomes
 
-    parents = sample_from_fittest(population, fitness, 5, 0.1, reverse=True)
+    parents = sample_from_fittest(population, fitness, 5, 0.1, minimize=False)
     selected_chromosomes = itertools.chain.from_iterable(parents)
     selected_chromosomes = [list(s) for s in selected_chromosomes]
     for unselected in population[:-2]:
