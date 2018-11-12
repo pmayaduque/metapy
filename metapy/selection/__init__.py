@@ -1,1 +1,1 @@
-from metapy.selection._selection_methods import sample_from_fittest, rank_based_selection
+from metapy.selection._selection import sample_from_fittest, rank_based_selection

@@ -1,46 +1,79 @@
 import numpy as np
 from multiprocessing import Pool
 from heapq import nlargest, nsmallest
-from metapy.crossover import uniform_crossover, one_point_crossover
-from metapy.selection import rank_based_selection, sample_from_fittest
-from metapy.mutation import bit_flip_mutation, rand_int_mutation
 
+
+class GeneticOptimizationResult(object):
+    def __init__(self, mutation_rate, population_size):
+        self.mutation_rate = mutation_rate
+        self.population_size = population_size
+        self.solution = None
+        self.best_fitness = []
+        self.average_fitness = []
+
+    def __str__(self):
+        d = {'solution': self.solution,
+             'best_fitness': self.best_fitness,
+             'average_fitness': self.average_fitness,
+             'population_size': self.population_size,
+             'mutation_rate': self.mutation_rate}
+        return str(d)
 
 
 class GeneticAlgorithm(object):
-    """Base class for the genetic algorithm. The user inherits from this class and specifies the evolutionary methods."""
+    """Class for the Genetic Algorithm
 
-    def __init__(self, generations, mutation_rate, selection_size, elitism=0, minimize=True):
+    Args:
+        object ([type]): [description]
+        generations (int): maximum number of generations
+        mutation_rate (float): value between 0 and 1 for the probability of mutation
+        population_size (int): size of each population
+        elitism (int): Default is 0, number of best chromosomes which are allowed to survive each generation
+        minimize (bool): if True, lower function value is better
+    """
+
+    def __init__(self, generations, mutation_rate, population_size, elitism=0, minimize=True):
         self.generations = generations
         self.mutation_rate = mutation_rate
-        self.selection_size = selection_size
+        self.population_size = population_size
         self.elitism = elitism
         self.minimize = minimize
 
-        self.survival_rate = None
+        self.selection_size = self.population_size - self.elitism
         self.population = None
 
     def optimize(self, number_of_processes=1):
+        """Performs optimization. The optimization follows three steps:
+        - for current population calculate fitness
+        - select chromosomes with best fitness values with higher propability as parents
+        - use parents for reproduction (crossover and mutation)
+        - repeat until max number of generation is reached
+
+            number_of_processes (int, optional): Defaults to 1. Parallel computation of fitness values and reproduction is allowed
+
+        Returns:
+            GeneticOptimizationResult
+        """
+
         if self.population is None:
             self.init_population()
 
-        res = {
-            'avg fitness': [],
-            'best fitness': [],
-            'x': None
-        }
+        res = GeneticOptimizationResult(
+            self.mutation_rate, self.population_size)
         generation = 0
+
+        # TODO let the user choose between different stop criteria
         while generation < self.generations:
             # calculate fitness for each candidate in the population
             with Pool(number_of_processes) as p:
                 fitness = p.map(self.fitness, self.population)
 
-            res['avg fitness'].append(sum(fitness) / len(fitness))
+            res.average_fitness.append(sum(fitness) / len(fitness))
 
             if self.minimize:
-                res['best fitness'].append(min(fitness))
+                res.best_fitness.append(min(fitness))
             else:
-                res['best fitness'].append(max(fitness))
+                res.best_fitness.append(max(fitness))
 
             # get parents
             parents = self.selection(fitness)
@@ -67,7 +100,7 @@ class GeneticAlgorithm(object):
 
             generation += 1
 
-        res['x'] = min(self.population, key=self.fitness)
+        res.solution = min(self.population, key=self.fitness)
         return res
 
     def init_population(self):
@@ -122,33 +155,6 @@ class GeneticAlgorithm(object):
             candidate (Vector): candidate from population
         """
         raise NotImplementedError
-
-    # crossover methods
-    def uniform_crossover(self, candidates):
-        return uniform_crossover(candidates)
-    
-    def one_point_crossover(self, candidates):
-        return one_point_crossover(candidates)
-
-    # selection methods
-    def rank_based_selection(self, fitness, number_of_parents=2):
-        return rank_based_selection(self.population, fitness, self.selection_size, reverse=not self.minimize, number_of_parents=number_of_parents)
-    
-    def sample_from_fittest(self, fitness, number_of_parents=2):
-        return sample_from_fittest(self.population, fitness, self.selection_size, survival_rate=self.survival_rate, reverse=not self.minimize, number_of_parents=number_of_parents)
-
-    # mutation methods
-    def bit_flip_mutation(self, candidate):
-        return bit_flip_mutation(candidate)
-
-    def rand_int_mutation(self, candidate, low=None, high=None):
-        if low is None:
-            low = min(candidate)
-        if high is None:
-            high = max(candidate)
-        
-        return rand_int_mutation(candidate, low, high)
-
 
 # TODO: Add Genetic Algorithm result class
 # TODO: Add Easy Genetic Algorithm setup
