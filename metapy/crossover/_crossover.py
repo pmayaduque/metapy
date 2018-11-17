@@ -42,7 +42,7 @@ def arithmetic_crossover(candidates, extrapolate=False):
         extrapolate (bool, optional): Defaults to False. [description]
     
     Returns:
-        [type]: [description]
+        Vector: new candidate
     """
 
     if extrapolate:
@@ -51,3 +51,35 @@ def arithmetic_crossover(candidates, extrapolate=False):
         u = np.random.uniform()
     new_candidate = u * candidates[0] + (1 - u) * candidates[1]
     return new_candidate
+
+def order_based_crossover(candidates):
+    """Performs a crossover which conserves the order of genes in the candidates. 12345678 + 26371485 -> **3456** + 2**71*8* -> 27345618
+
+    Expects candidates to be same length, each gene appears in the candidates exactly once.
+    
+    Args:
+        candidates (List(Vector)): two candidates
+    
+    Returns:
+        Vector: new candidate
+    """
+
+    first, second = candidates[:2]
+    assert len(first) == len(second)
+    new_candidate = [None for i in range(len(first))]
+    start = np.random.randint(0, len(first))
+    end = np.random.randint(0, len(first))
+
+    if start < end:
+        for i in range(start, end):
+            new_candidate[i] = first[i]
+    else:
+        for i in range(start, end, -1):
+            new_candidate[i] = first[i]
+    
+    second = (gene for gene in second if gene not in new_candidate)
+    for i in range(len(new_candidate)):
+        if new_candidate[i] is None:
+            new_candidate[i] = next(second)
+
+    return np.array(new_candidate)

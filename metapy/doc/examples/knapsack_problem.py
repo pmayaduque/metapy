@@ -1,4 +1,3 @@
-# TODO Show usage of Genetic algorithm on the example of the Knapsack Problem
 import numpy as np
 import metapy as mp
 from metapy.algorithms import GeneticAlgorithm

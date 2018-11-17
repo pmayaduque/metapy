@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from metapy.crossover import uniform_crossover, one_point_crossover
+from metapy.crossover import uniform_crossover, one_point_crossover, order_based_crossover
 
 
 def test_uniform_crossover():
@@ -20,3 +20,7 @@ def test_one_point_crossover():
         genotype = new_candidate[i]
         possible_genotypes = [c[i] for c in candidates]
         assert genotype in possible_genotypes
+
+def test_order_based_crossover():
+    candidates = [[1, 2, 3, 4, 5, 6, 7, 8, 9], [11, 22, 33, 44, 55, 66, 77, 88, 99]]
+    new_candidate = order_based_crossover(candidates)

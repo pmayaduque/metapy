@@ -156,5 +156,4 @@ class GeneticAlgorithm(object):
         """
         raise NotImplementedError
 
-# TODO: Add Genetic Algorithm result class
-# TODO: Add Easy Genetic Algorithm setup
+# TODO: Implement an easy method for setting up a genetic algorithm
