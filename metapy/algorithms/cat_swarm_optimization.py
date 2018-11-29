@@ -1,4 +1,6 @@
 from random import random
+from copy import copy
+
 import numpy as np
 
 
@@ -7,7 +9,7 @@ class CatSwarmOptimization:
     def __init__(self,
                  mr, smp, srd, cdc, spc,
                  c,
-                 fitness, fitmax, fitmin):
+                 fitness, fitmax, fitmin, minimize=True):
         """
         Initialization for a cat swarm optimizer
         :param mr: Mixture Ratio, which percentage of the cat population should be in tracing mode
@@ -20,6 +22,7 @@ class CatSwarmOptimization:
         :param fitness: Function that should be used to evaluate the fitness of a cat (solution)
         :param fitmax: Max Value of the fitness function
         :param fitmin: Min Vlaue of the fitness function
+        :param minimize: Default set to true, optimizer maximizes fitness when set to false
         """
         self.mr = mr
         self.smp = smp
@@ -30,6 +33,7 @@ class CatSwarmOptimization:
         self.fitness = fitness
         self.fitmax = fitmax
         self.fitmin = fitmin
+        self.minimize = minimize
         self._population = []
         self.bestcat = None
 
@@ -42,12 +46,16 @@ class CatSwarmOptimization:
         self._population.clear()
         bestcat = cats[0]
         for c in cats:
-            self._population.append(c.copy())
-            bestcat = c if c.eval() > bestcat.eval else bestcat
+            self._population.append(copy(c))
+            if self.minimize:
+                bestcat = c if c.eval() < bestcat.eval() else bestcat
+            else:
+                bestcat = c if c.eval() > bestcat.eval() else bestcat
         self.bestcat = bestcat
         return len(self._population)
 
     def optimize(self, epochs=1):
+        #ToDo: currently no optimization is happening here .. this has to be fixed
         """
         Processes the tracing / seeking procedure for each cat once and evaluates their fitness afterwards.
         :param epochs: Number of iterations
@@ -63,7 +71,7 @@ class CatSwarmOptimization:
                     # in case spc is true, there should only be smp-1 copies of the cat
                     nseekingcats = self.smp if self.spc is False else self.smp - 1
                     for i in range(nseekingcats):
-                        local_cats.append(cat.copy())
+                        local_cats.append(copy(cat))
                     # alter the position of all local cat-copies
                     for localcat in local_cats:
                         localcat.alter_position(self.srd)
@@ -75,15 +83,26 @@ class CatSwarmOptimization:
                     for localcat in local_cats:
                         local_fitness.append(localcat.eval())
                     # select a new cat based on their respective fitness
-                    local_probability = [abs(fitness - self.fitmax) / abs(self.fitmax - self.fitmin)
-                                         for fitness in local_fitness]
-                    swap_cats.append((cat, np.random.choice(local_cats, p=local_probability)))
+                    local_probability = []
+                    if self.minimize:
+                        local_probability = [abs(fitness - self.fitmin) / abs(self.fitmax - self.fitmin)
+                                             for fitness in local_fitness]
+                    else:
+                        local_probability = [abs(fitness - self.fitmax) / abs(self.fitmax - self.fitmin)
+                                             for fitness in local_fitness]
+                    norm_prob = local_probability / np.array(local_probability).sum()
+                    swap_cats.append((cat, np.random.choice(local_cats, p=norm_prob)))
                 else:  # cat has to be in tracing mode when not in seeking mode
                     cat.move(self.bestcat, self.c)
             for oldcat, newcat in swap_cats:
                 self._population.remove(oldcat)
                 self._population.append(newcat)
-            print(".")
+            for cat in self._population:
+                if self.minimize:
+                    self.bestcat = cat if cat.eval() < self.bestcat.eval() else self.bestcat
+                else:
+                    self.bestcat = cat if cat.eval() > self.bestcat.eval() else self.bestcat
+            print(".", end="")
 
         print("\n DONE OPTIMIZING FOR {} epochs".format(epochs))
         return [cat.eval() for cat in self._population]
@@ -99,12 +118,20 @@ class Cat:
         :param mr: Mixture Ratio, percentage of cats in tracing mode [0.0, 1.0]
         :param fitness: Ref to fitness-function used to evaluate each single cat
         """
-        self.position = position
-        self.velocity = velocity
+        self.position = np.array(position)
+        self.velocity = np.array(velocity)
         self.fitness = fitness
-        self._seeking = True if random() <= mr else False
+        self._seeking = False if random() <= mr else True
 
     def eval(self):
+        """
+        Evaluate the cats fitness
+        :returns: a fitness value for that cat
+        """
+        return self.fitness(self)
+
+    @property
+    def eval_prop(self):
         """
         Evaluate the cats fitness
         :returns: a fitness value for that cat
@@ -133,7 +160,7 @@ class Cat:
                     (m-dimensional vector)
         :returns: The new position of the cat
         """
-        self.position = (1 + srd * random()) * self.position
+        self.position = (1 + np.array(srd) * (random() - 0.5)) * self.position
         return self.position
 
     def move(self, bestcat, c):
@@ -143,6 +170,9 @@ class Cat:
         :param c: Constant factor for movement towards the best cats position
         :return: The new position of the cat
         """
-        self.velocity = self.velocity + (random() * c * (bestcat.position - self.position))
+        #ToDo: Normally this should be
+        #       Velocity = Velocity + (newValue)
+        # however this lead to pretty big velocities so had to change that
+        self.velocity = random() * c * (bestcat.position - self.position)
         self.position = self.position + self.velocity
         return self.position
