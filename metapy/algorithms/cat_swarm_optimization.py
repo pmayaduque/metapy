@@ -9,7 +9,7 @@ class CatSwarmOptimization:
     def __init__(self,
                  mr, smp, srd, cdc, spc,
                  c,
-                 fitness, fitmax, fitmin, minimize=True):
+                 fitmax, fitmin, minimize=True):
         """
         Initialization for a cat swarm optimizer
         :param mr: Mixture Ratio, which percentage of the cat population should be in tracing mode
@@ -19,7 +19,6 @@ class CatSwarmOptimization:
         :param cdc: Counts of Dimensions to Change, how many dimensions to mutate in seeking mode
         :param spc: Self Position Consideration, can the cats own postion be a candidate for cat-copies in seeking mode?
         :param c: Constant velocity factor in tracing mode
-        :param fitness: Function that should be used to evaluate the fitness of a cat (solution)
         :param fitmax: Max Value of the fitness function
         :param fitmin: Min Vlaue of the fitness function
         :param minimize: Default set to true, optimizer maximizes fitness when set to false
@@ -30,32 +29,37 @@ class CatSwarmOptimization:
         self.cdc = cdc
         self.spc = spc
         self.c = c
-        self.fitness = fitness
         self.fitmax = fitmax
         self.fitmin = fitmin
         self.minimize = minimize
-        self._population = []
         self.bestcat = None
+        self._population = []
 
-    def init_population(self, cats):
+    def init_population(self, ncats):
         """
-        Copies a list of cats into a local initial population.
+        Initializes a random population of cats.
         Any present population is being deleted.
-        :returns: length of copied population
+        :param ncats: Number of cats to initialize for initial random population
+        :returns: None
         """
         self._population.clear()
-        bestcat = cats[0]
-        for c in cats:
-            self._population.append(copy(c))
+
+        for i in range(ncats):
+            self._population.append(
+                Cat([random() * 3, random() * 3], [random() * 0.2, random() * 0.2], 0.2, self.fitness)
+            )
+
+        bestcat = self._population[0]
+        for cat in self._population[1:]:
+            self._population.append(copy(cat))
             if self.minimize:
-                bestcat = c if c.eval() < bestcat.eval() else bestcat
+                bestcat = cat if cat.eval() < bestcat.eval() else bestcat
             else:
-                bestcat = c if c.eval() > bestcat.eval() else bestcat
+                bestcat = cat if cat.eval() > bestcat.eval() else bestcat
         self.bestcat = bestcat
-        return len(self._population)
 
     def optimize(self, epochs=1):
-        #ToDo: currently no optimization is happening here .. this has to be fixed
+        # ToDo: currently no optimization is happening here .. this has to be fixed
         """
         Processes the tracing / seeking procedure for each cat once and evaluates their fitness afterwards.
         :param epochs: Number of iterations
@@ -83,7 +87,6 @@ class CatSwarmOptimization:
                     for localcat in local_cats:
                         local_fitness.append(localcat.eval())
                     # select a new cat based on their respective fitness
-                    local_probability = []
                     if self.minimize:
                         local_probability = [abs(fitness - self.fitmin) / abs(self.fitmax - self.fitmin)
                                              for fitness in local_fitness]
@@ -107,6 +110,14 @@ class CatSwarmOptimization:
         print("\n DONE OPTIMIZING FOR {} epochs".format(epochs))
         return [cat.eval() for cat in self._population]
 
+    def fitness(self, cat):
+        """
+        Evaluates the fitness of the cat.
+        Has to be implemented when inheriting this class
+        :returns: The fitness of the Cat
+        """
+        raise NotImplementedError
+
 
 class Cat:
 
@@ -116,7 +127,7 @@ class Cat:
         :param position: M-Dimensional Vector in solution-space
         :param velocity: M-Dimensional Vector, indicating cats movement speed per dimension of solution-space
         :param mr: Mixture Ratio, percentage of cats in tracing mode [0.0, 1.0]
-        :param fitness: Ref to fitness-function used to evaluate each single cat
+        :param fitness: Function to evaluate cats fitness
         """
         self.position = np.array(position)
         self.velocity = np.array(velocity)
@@ -128,7 +139,8 @@ class Cat:
         Evaluate the cats fitness
         :returns: a fitness value for that cat
         """
-        return self.fitness(self)
+        fit = self.fitness(self)
+        return fit
 
     @property
     def eval_prop(self):
