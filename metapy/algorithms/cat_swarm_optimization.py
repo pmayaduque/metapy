@@ -88,10 +88,10 @@ class CatSwarmOptimization:
                         local_fitness.append(localcat.eval())
                     # select a new cat based on their respective fitness
                     if self.minimize:
-                        local_probability = [abs(fitness - self.fitmin) / abs(self.fitmax - self.fitmin)
+                        local_probability = [abs(fitness - self.fitmax) / abs(self.fitmax - self.fitmin)
                                              for fitness in local_fitness]
                     else:
-                        local_probability = [abs(fitness - self.fitmax) / abs(self.fitmax - self.fitmin)
+                        local_probability = [abs(fitness - self.fitmin) / abs(self.fitmax - self.fitmin)
                                              for fitness in local_fitness]
                     norm_prob = local_probability / np.array(local_probability).sum()
                     swap_cats.append((cat, np.random.choice(local_cats, p=norm_prob)))
