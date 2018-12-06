@@ -8,7 +8,7 @@ class CatSwarmOptimization:
 
     def __init__(self,
                  mr, smp, srd, cdc, spc,
-                 c,
+                 c, maxvelo,
                  fitmax, fitmin, minimize=True):
         """
         Initialization for a cat swarm optimizer
@@ -19,6 +19,7 @@ class CatSwarmOptimization:
         :param cdc: Counts of Dimensions to Change, how many dimensions to mutate in seeking mode
         :param spc: Self Position Consideration, can the cats own postion be a candidate for cat-copies in seeking mode?
         :param c: Constant velocity factor in tracing mode
+        :param maxvelo: Max Velocity for a cat in tracing mode
         :param fitmax: Max Value of the fitness function
         :param fitmin: Min Vlaue of the fitness function
         :param minimize: Default set to true, optimizer maximizes fitness when set to false
@@ -29,6 +30,7 @@ class CatSwarmOptimization:
         self.cdc = cdc
         self.spc = spc
         self.c = c
+        self.maxvelo = maxvelo
         self.fitmax = fitmax
         self.fitmin = fitmin
         self.minimize = minimize
@@ -42,16 +44,16 @@ class CatSwarmOptimization:
         :param ncats: Number of cats to initialize for initial random population
         :returns: None
         """
+        # reset population
         self._population.clear()
-
+        # init population with random values
         for i in range(ncats):
             self._population.append(
                 Cat([random() * 3, random() * 3], [random() * 0.2, random() * 0.2], 0.2, self.fitness)
             )
-
+        # find best cat in initial population
         bestcat = self._population[0]
         for cat in self._population[1:]:
-            self._population.append(copy(cat))
             if self.minimize:
                 bestcat = cat if cat.eval() < bestcat.eval() else bestcat
             else:
@@ -59,7 +61,6 @@ class CatSwarmOptimization:
         self.bestcat = bestcat
 
     def optimize(self, epochs=1):
-        # ToDo: currently no optimization is happening here .. this has to be fixed
         """
         Processes the tracing / seeking procedure for each cat once and evaluates their fitness afterwards.
         :param epochs: Number of iterations
@@ -87,6 +88,8 @@ class CatSwarmOptimization:
                     for localcat in local_cats:
                         local_fitness.append(localcat.eval())
                     # select a new cat based on their respective fitness
+                    # ToDo: fitness values which are greater than the chosen fitmax have catastrophic
+                    #       effects.
                     if self.minimize:
                         local_probability = [abs(fitness - self.fitmax) / abs(self.fitmax - self.fitmin)
                                              for fitness in local_fitness]
@@ -96,7 +99,7 @@ class CatSwarmOptimization:
                     norm_prob = local_probability / np.array(local_probability).sum()
                     swap_cats.append((cat, np.random.choice(local_cats, p=norm_prob)))
                 else:  # cat has to be in tracing mode when not in seeking mode
-                    cat.move(self.bestcat, self.c)
+                    cat.move(self.bestcat, self.c, self.maxvelo)
             for oldcat, newcat in swap_cats:
                 self._population.remove(oldcat)
                 self._population.append(newcat)
@@ -105,7 +108,8 @@ class CatSwarmOptimization:
                     self.bestcat = cat if cat.eval() < self.bestcat.eval() else self.bestcat
                 else:
                     self.bestcat = cat if cat.eval() > self.bestcat.eval() else self.bestcat
-            print(".", end="")
+            print(self.bestcat.eval())
+            #print(".", end="")
 
         print("\n DONE OPTIMIZING FOR {} epochs".format(epochs))
         return [cat.eval() for cat in self._population]
@@ -166,25 +170,34 @@ class Cat:
 
     def alter_position(self, srd):
         """
-        Alters position of the cat based on (Majumder and Eldho 2016) Xcn = (1 + srd * random) * Xc
-        This method is used for cats in seeking mode
+        Following (Majumder and Eldho 2016) the position should be altered as
+        Xcn = (1 + srd * r) * Xc, where r is a random number between 0 and 1.
+        However going with a random number between -0.5 and 0.5 lead to better results on the
+        rastrigin and rosenbrock function, so we deviated slightly here.
+        This method is used for cats in seeking mode.
         :param srd: Seeking Range per Dimension, how far should the cat be looking into the solution space
                     (m-dimensional vector)
         :returns: The new position of the cat
         """
+        # ToDo: Limit the number of dimensions to change
         self.position = (1 + np.array(srd) * (random() - 0.5)) * self.position
         return self.position
 
-    def move(self, bestcat, c):
+    def move(self, bestcat, c, maxvelo):
         """
-        This method moves cats in tracing mode into the direction of the currently best cat
+        Following Chu and Tsai (probably, have to check this) a cat in tracing mode should
+        calc their new velocity as vnew = nold + r * c (bestcat.pos - thiscat.pos).
+        Velocity is limited by maxvelo, though.
         :param bestcat: Cat with highest fitness
         :param c: Constant factor for movement towards the best cats position
+        :param maxvelo: Max Velocity for a cat to move in tracing mode
         :return: The new position of the cat
         """
-        #ToDo: Normally this should be
-        #       Velocity = Velocity + (newValue)
-        # however this lead to pretty big velocities so had to change that
-        self.velocity = random() * c * (bestcat.position - self.position)
+        # calc new velo
+        self.velocity = self.velocity + random() * c * (bestcat.position - self.position)
+        # limit velocity
+        for i in range(len(self.velocity)):
+            self.velocity[i] = maxvelo[i] if maxvelo[i] > self.velocity[i] else self.velocity[i]
+        # update position
         self.position = self.position + self.velocity
         return self.position
