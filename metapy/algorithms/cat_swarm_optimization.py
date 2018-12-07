@@ -14,10 +14,11 @@ class CatSwarmOptimization:
         Initialization for a cat swarm optimizer
         :param mr: Mixture Ratio, which percentage of the cat population should be in tracing mode
         :param smp: Seeking Memory Pool, number of cat-copies in seeking mode (per seeking cat)
-        :param srd: Seeking Range per Dimension, how far should the cat be looking into the solution space
-                    (m-dimensional vector)
+        :param srd: Seeking Range per Dimension, how far should the cat be looking into the solution
+                    space (m-dimensional vector)
         :param cdc: Counts of Dimensions to Change, how many dimensions to mutate in seeking mode
-        :param spc: Self Position Consideration, can the cats own postion be a candidate for cat-copies in seeking mode?
+        :param spc: Self Position Consideration, can the cats own postion be a candidate for
+                    cat-copies in seeking mode?
         :param c: Constant velocity factor in tracing mode
         :param maxvelo: Max Velocity for a cat in tracing mode
         :param fitmax: Max Value of the fitness function
@@ -49,7 +50,9 @@ class CatSwarmOptimization:
         # init population with random values
         for i in range(ncats):
             self._population.append(
-                Cat([random() * 3, random() * 3], [random() * 0.2, random() * 0.2], 0.2, self.fitness)
+                Cat([random() * 3, random() * 3],
+                    [random() * 0.2, random() * 0.2],
+                    0.2, self.fitness)
             )
         # find best cat in initial population
         bestcat = self._population[0]
@@ -62,11 +65,18 @@ class CatSwarmOptimization:
 
     def optimize(self, epochs=1):
         """
-        Processes the tracing / seeking procedure for each cat once and evaluates their fitness afterwards.
+        Processes the tracing / seeking procedure for each cat 'epoch' times  and evaluates
+        their fitness.
+        In the process the actual fitness values used for calculation of propability of selection
+        are limited to the min and max fitness values given at the time of initialization.
+        This has no effect when the actual min and max fitness values are well known,
+        however inaccurate estimates would have a chatastrophic effect on the selection process.
         :param epochs: Number of iterations
-        :return: List of fitness values for each cat in the population
+        :return: List of fitness values for each cat in the final population.
+                 Do note that the best final cat does not have to be the
+                 overall best cat seen in cso!
         """
-        print("Optimize for {} epochs\n .".format(epochs))
+        print("\nOptimize for {} epochs".format(epochs))
         for i in range(epochs):
             swap_cats = []
             for cat in self._population:
@@ -79,8 +89,8 @@ class CatSwarmOptimization:
                         local_cats.append(copy(cat))
                     # alter the position of all local cat-copies
                     for localcat in local_cats:
-                        localcat.alter_position(self.srd)
-                    # in case spc was true, the original cat has to be added now to the local_cats list
+                        localcat.alter_position(self.srd, self.cdc)
+                    # in case spc was true, the original cat has to be added now to local_cats
                     if self.spc is True:
                         local_cats.append(cat)
                     # Afterwards evaluate the fitness of all cats in that memory pool
@@ -88,13 +98,14 @@ class CatSwarmOptimization:
                     for localcat in local_cats:
                         local_fitness.append(localcat.eval())
                     # select a new cat based on their respective fitness
-                    # ToDo: fitness values which are greater than the chosen fitmax have catastrophic
-                    #       effects.
                     if self.minimize:
-                        local_probability = [abs(fitness - self.fitmax) / abs(self.fitmax - self.fitmin)
-                                             for fitness in local_fitness]
+                        local_fitness = [min(fit, self.fitmax) for fit in local_fitness ]
+                        local_probability = \
+                            [abs(fitness - self.fitmax) / abs(self.fitmax - self.fitmin)
+                             for fitness in local_fitness]
                     else:
-                        local_probability = [abs(fitness - self.fitmin) / abs(self.fitmax - self.fitmin)
+                        local_fitness = [max(fit, self.fitmin) for fit in local_fitness]
+                        local_probability = [fitness - self.fitmin / abs(self.fitmax - self.fitmin)
                                              for fitness in local_fitness]
                     norm_prob = local_probability / np.array(local_probability).sum()
                     swap_cats.append((cat, np.random.choice(local_cats, p=norm_prob)))
@@ -103,15 +114,13 @@ class CatSwarmOptimization:
             for oldcat, newcat in swap_cats:
                 self._population.remove(oldcat)
                 self._population.append(newcat)
-            for cat in self._population:
+            # get best cat currently in population
+            self.bestcat = self._population[0]
+            for cat in self._population[1:]:
                 if self.minimize:
                     self.bestcat = cat if cat.eval() < self.bestcat.eval() else self.bestcat
                 else:
                     self.bestcat = cat if cat.eval() > self.bestcat.eval() else self.bestcat
-            print(self.bestcat.eval())
-            #print(".", end="")
-
-        print("\n DONE OPTIMIZING FOR {} epochs".format(epochs))
         return [cat.eval() for cat in self._population]
 
     def fitness(self, cat):
@@ -168,7 +177,7 @@ class Cat:
         """
         return not self.is_seeking()
 
-    def alter_position(self, srd):
+    def alter_position(self, srd, cdc):
         """
         Following (Majumder and Eldho 2016) the position should be altered as
         Xcn = (1 + srd * r) * Xc, where r is a random number between 0 and 1.
@@ -179,8 +188,11 @@ class Cat:
                     (m-dimensional vector)
         :returns: The new position of the cat
         """
-        # ToDo: Limit the number of dimensions to change
-        self.position = (1 + np.array(srd) * (random() - 0.5)) * self.position
+        mask = np.zeros(len(srd))
+        switch = np.random.choice(np.arange(len(srd)), cdc, replace=False)
+        for i in switch:
+            mask[i] = 1
+        self.position = (1 + (np.array(srd) * (random() - 0.5) * mask)) * self.position
         return self.position
 
     def move(self, bestcat, c, maxvelo):
