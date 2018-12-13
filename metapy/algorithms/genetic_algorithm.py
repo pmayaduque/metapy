@@ -24,7 +24,6 @@ class GeneticAlgorithm(object):
     """Class for the Genetic Algorithm
 
     Args:
-        object ([type]): [description]
         generations (int): maximum number of generations
         mutation_rate (float): value between 0 and 1 for the probability of mutation
         population_size (int): size of each population
@@ -84,7 +83,7 @@ class GeneticAlgorithm(object):
 
             # perform mutation
             with Pool(number_of_processes) as p:
-                children = p.map(self.mutation, children)
+                children = p.map(self._mutate, children)
 
             if self.elitism > 0:
                 if self.minimize:
@@ -139,6 +138,13 @@ class GeneticAlgorithm(object):
             List(List(candidate)) - selected as parents
         """
         raise NotImplementedError
+        
+    def _mutate(self, candidate):
+        """Internal method for calling the mutation method"""
+        if np.random.uniform() > self.mutation_rate:
+            return self.mutation(candidate)
+        else:
+            return candidate
 
     def mutation(self, candidate):
         """Performs mutation of candidate
