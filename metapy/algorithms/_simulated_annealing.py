@@ -22,6 +22,9 @@ class SimulatedAnnealing(Algorithm):
         if np.isinf(self.max_iterations) and np.isinf(self.max_time):
             raise TypeError('Expect either max_iterations or max_time to be not inf.')
         
+        if self.state is None:
+            self.init_state()
+        
         # estimate number of iterations by measuring time for objective function
         if not np.isinf(self.max_time):
             start_time = time.time()
@@ -30,9 +33,6 @@ class SimulatedAnnealing(Algorithm):
             estimated_iterations = int(self.max_time / time_needed)
         else:
             self.current_energy = self._energy(self.state)
-        
-        if self.state is None:
-            self.init_state()
         
         # make educated guess for good initial temperature
         if self.temperature is None:
