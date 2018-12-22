@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 from random import random
 
@@ -17,16 +18,34 @@ def alter_position_continuous(cat, seeking_range_per_direction, counts_of_dimens
     new_cat = (1 + (np.array(seeking_range_per_direction) * (random() - 0.5) * mask)) * cat
     return new_cat
 
+
+def alter_position_binary(cat, probability_of_mutation, counts_of_dimenstions_to_change):
+    """
+    Implementation follows (Sharafi Y.,Khanesar M.A., Teshnehlab M.:
+    Discrete Binary Cat Swarm Optimization Algorithm)
+    This method is used for cats in seeking mode.
+    """
+    new_cat = copy(cat)
+    switch = np.random.choice(np.arange(len(probability_of_mutation)),
+                              counts_of_dimenstions_to_change, replace=False)
+    for i in switch:
+        should_switch = np.random.choice({True, False}, 1, [probability_of_mutation,
+                                                            1-probability_of_mutation])
+        if should_switch is True:
+            new_cat.position[i] = 1 if new_cat.position[i] == 0 else 0
+    return new_cat
+
+
 def move_continuous(cat, bestcat, current_velocity, velocity_factor, max_velocity):
     """Following Chu and Tsai (probably, have to check this) a cat in tracing mode should
     calc their new velocity as vnew = nold + r * c (bestcat.pos - thiscat.pos).
     Velocity is limited by max_velocity, though.
     Args:
-        cat(Vector): Current cat
-        bestcat(Vector): cat with best fitness
+        cat(Vector): Current cats position
+        bestcat(Vector): position of cat with best fitness
         current_velocity(Vector): velocity vector if current cat
         velocity_factor(float):
-        max_velocity()
+        max_velocity(float): maximum velocity
 
     Returns:
         new_cat(Vector): array of position of new cat
@@ -40,3 +59,51 @@ def move_continuous(cat, bestcat, current_velocity, velocity_factor, max_velocit
     # update position
     new_cat = cat + velocity
     return new_cat, velocity
+
+
+def move_binary(cat, bestcat, current_velocity, velocity_factor, max_velocity):
+    """Following Chu and Tsai (probably, have to check this) a cat in tracing mode should
+    calc their new velocity as vnew = nold + r * c (bestcat.pos - thiscat.pos).
+    Velocity is limited by max_velocity, though.
+    Args:
+        cat(Vector): Current cat
+        bestcat(Vector): cat with best fitness
+        current_velocity(Vector): 2 Vectors,
+                                    first representing probability of a dimension becoming 1
+                                    second representing probability of a dimension becoming 0
+        velocity_factor(float):
+        max_velocity(Vector): Same as for 'current_velocity'
+
+    Returns:
+        new_cat(Vector): array of position of new cat
+        velocity(Vector): array with new velocity
+
+    ToDo: Currently inertia weights are randomly drawn from a uniform distribution.
+          Should we make the inertia weights a new parameter to allow greater flexibility?
+    """
+    # draw random inertia_weight
+    inertia_weight = np.random.random_sample()
+    # calc new velocity values
+    mask = list(map(lambda x: x if x == 1 else -1, bestcat.position))
+    d1 = np.random.random_sample() * velocity_factor * mask
+    d0 = d1 * -1
+    current_velocity[0] = inertia_weight * current_velocity[0] + d1
+    current_velocity[1] = inertia_weight * current_velocity[1] * d0
+    # limit new velocity to max_velocity
+    v1 = list(map(lambda x, y: x if x <= y else y,
+                  current_velocity[0],
+                  max_velocity[0]))
+    v0 = list(map(lambda x, y: x if x <= y else y,
+                  current_velocity[1],
+                  max_velocity[1]))
+    v = list(map(lambda x, y, z: x if z == 0 else y, v1, v0, bestcat.position))
+    # calc the probability of mutation based on new velocity
+    t = 1 / (1 + np.exp(-1*v))
+    # switch the cats 0s or 1s based on probability vector t
+    new_cat = copy(cat)
+    for i in range(len(new_cat.position)):
+        should_switch = np.random.choice({True, False}, 1, [t[i], t[i]-1])
+        if should_switch is True:
+            new_cat.position[i] = bestcat.position[i]
+    # return stuff
+    return new_cat, [v1, v0]

@@ -11,6 +11,7 @@ class Algorithm(object):
         self.iterations = 0
         self.start_time = None
         self.external_exit = False
+        # ToDo: We shouldnt be using those, but instead use the results function_calls property
         self.function_calls = {}
     
     def start(self):
