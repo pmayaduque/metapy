@@ -2,8 +2,10 @@ import numpy as np
 import random
 from os import cpu_count
 from multiprocessing import Pool
+from metapy.algorithms._base import Algorithm, Result
 
-class AntColonyOpimizaionResult(object):
+
+class AntColonyOpimizaionResult(Result):
     def __init__(self, colony_size, evaporation, pheromone_factor):
         self.colony_size = colony_size
         self.evaporation = evaporation
@@ -13,7 +15,7 @@ class AntColonyOpimizaionResult(object):
         self.average_distances = []
 
 
-class AntColonyAlgorithm(object):
+class AntColonyAlgorithm(Algorithm):
     def __init__(self, distance_matrix, colony_size, evaporation=0.01, pheromone_factor=1.0, elitism=None):
         self.distance_matrix = distance_matrix
         self.colony_size = colony_size

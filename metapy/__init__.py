@@ -4,3 +4,4 @@ import metapy.mutation
 import metapy.initialization
 import metapy.fitness
 import metapy.crossover
+import metapy.moving
