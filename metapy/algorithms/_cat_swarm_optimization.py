@@ -48,10 +48,130 @@ class CatSwarmOptimization(Algorithm):
         self.fitmin = fitmin
         self.minimize = minimize
 
-        self.bestcat = None
         self.initial_population = None
-        self._population = []
+        self._population = None
+        self.bestcat = None
         
+        self.res = Result()
+
+    def optimize(self, max_iterations=np.inf, max_time=np.inf):
+        """
+        Processes the tracing / seeking procedure for each cat. Stop after 'max_iterations' or
+        'max_time' whatever is first. It is sufficient to define one of those, though.
+        In the process the actual fitness values used for calculation of propability of selection
+        are limited to the min and max fitness values given at the time of initialization.
+        This has no effect when the actual min and max fitness values are well known,
+        however inaccurate estimates would have a chatastrophic effect on the selection process.
+        Running this function multiple times reinitializes the population before running the
+        optimization again.
+        Args:
+            max_iterations(int): Number of iterations for which the algorithm should stop optimizing
+            max_time(float): Realtime after which the algorithm should stop optimizing
+        Returns:
+            Result: optimizer result object containing solution, metadata and progress information
+        """
+        self.max_iterations = max_iterations
+        self.max_time = max_time
+        if np.isinf(self.max_iterations) and np.isinf(self.max_time):
+            raise TypeError('Expect either max_iterations or max_time to be not inf.')
+
+        self._init_result()
+        self._init_population()
+        self.start()
+        while not self.has_finished():
+            swap_cats = []
+            for cat in self._population:
+                if self.has_finished():
+                    break
+                if cat.mode == "tracing":
+                    self._move(cat, self.bestcat)
+                    continue
+                # Seeking mode here
+                # in case self_position_consideration is true,
+                # there should only be seeking_memory_pool-1 copies of the cat
+                nseekingcats = self.seeking_memory_pool if not self.self_position_consideration \
+                    else self.seeking_memory_pool - 1
+
+                # make nseekingcats copies of this cat
+                local_cats = [copy(cat)] * nseekingcats
+                # alter their position
+                local_cats = [self._alter_position(c) for c in local_cats]
+
+                # in case self_position_consideration was true,
+                # the original cat has to be added now to local_cats
+                if self.self_position_consideration:
+                    local_cats.append(cat)
+
+                # Afterwards evaluate the fitness of all cats in that memory pool
+                local_fitness = [self._fitness(c) for c in local_cats]
+
+                # select a new cat based on their respective fitness
+                if self.minimize:
+                    local_fitness = [min(fit, self.fitmax)
+                                     for fit in local_fitness]
+                    local_probability = [(self.fitmax - fitness) / abs(self.fitmax - self.fitmin)
+                                         for fitness in local_fitness]
+                else:
+                    local_fitness = [max(fit, self.fitmin)
+                                     for fit in local_fitness]
+                    local_probability = [abs(fitness - abs(self.fitmin)) /
+                                         abs(self.fitmax - self.fitmin)
+                                         for fitness in local_fitness]
+
+                norm_prob = local_probability / np.array(local_probability).sum()
+                swap_cats.append((cat, np.random.choice(local_cats, p=norm_prob)))
+
+            for oldcat, newcat in swap_cats:
+                self._population.remove(oldcat)
+                self._population.append(newcat)
+
+            # get best cat currently in population
+            def key(c): return self._fitness(c)
+            self.bestcat = min(self._population, key=key) if self.minimize else max(
+                self._population, key=key)
+
+            self.res.best_progress.append(self._fitness(self.bestcat))
+            self.res.averaged_progress.append(
+                sum([self._fitness(c) for c in self._population]) / len(self._population))
+            self.iterations += 1
+
+        self.res.solution = self.bestcat.position
+        return self.res
+
+    def init_population(self):
+        """
+        Generate positions for initial population
+        Returns:
+            A list of positions for the initial population
+        """
+        raise NotImplementedError
+
+    def init_velocities(self):
+        """
+        Generate velocities for the initiali population.
+        The generated velocity list has to be of the same length as the positions-list.
+        Returns:
+            A list of velocities for the initial population
+        """
+        raise NotImplementedError
+
+    def _init_population(self):
+        self.initial_population = self.init_population()
+        self._population = []
+        velocities = self.init_velocities()
+        for i, position in enumerate(self.initial_population):
+            mode = "tracing" if np.random.uniform() < self.mixture_ratio else "seeking"
+            self._population.append(Cat(position=position, velocity=velocities[i], mode=mode))
+
+        if self.minimize is True:
+            def return_better(a, b): return a if self._fitness(a) < self._fitness(b) else b
+        else:
+            def return_better(a, b): return a if self._fitness(a) > self._fitness(b) else b
+        self.bestcat = self._population[0]
+        for cat in self._population:
+            self.bestcat = return_better(cat, self.bestcat)
+
+    def _init_result(self):
         self.res = Result()
         self.res.optimizer_settings['mixture_ratio'] = self.mixture_ratio
         self.res.optimizer_settings['seeking_memory_pool'] = self.seeking_memory_pool
@@ -68,110 +188,10 @@ class CatSwarmOptimization(Algorithm):
         self.res.function_calls['fitness'] = 0
         self.res.function_calls['move'] = 0
         self.res.function_calls['alter_position'] = 0
-        
-
-    def optimize(self, max_iterations=np.inf, max_time=np.inf):
-        """
-        Processes the tracing / seeking procedure for each cat. Stop after 'max_iterations' or
-        'max_time' whatever is first. It is sufficient to define one of those, though.
-        In the process the actual fitness values used for calculation of propability of selection
-        are limited to the min and max fitness values given at the time of initialization.
-        This has no effect when the actual min and max fitness values are well known,
-        however inaccurate estimates would have a chatastrophic effect on the selection process.
-        Args:
-            max_iterations(int): Number of iterations after which the algorithm should stop optimizing
-            max_time(float): Realtime after which the algorithm should stop optimizing
-        Returns:
-            Result: optimizer result object containing solution, metadata and progress information
-        """
-        self.max_iterations = max_iterations
-        self.max_time = max_time
-        if np.isinf(self.max_iterations) and np.isinf(self.max_time):
-            raise TypeError('Expect either max_iterations or max_time to be not inf.')
-
-        if self.initial_population is None:
-            self.init_population()
-
-        for position in self.initial_population:
-            velocity = np.random.uniform(low=-0.5, high=0.5) * self.max_velocity
-            mode = "tracing" if np.random.uniform() < self.mixture_ratio else "seeking"
-            self._population.append(Cat(position=position, velocity=velocity, mode=mode))
-
-        # get best cat currently in population
-        def key(c): return self._fitness(c.position)
-        self.bestcat = min(self._population, key=key) if self.minimize else max(
-            self._population, key=key)
-
-        self.start()
-        while not self.has_finished():
-            swap_cats = []
-            for cat in self._population:
-                if self.has_finished():
-                    break
-                if cat.mode == "tracing":
-                    self._move(cat, self.bestcat)
-                    continue
-                # Seeking mode here
-                # in case self_position_consideration is true,
-                # there should only be seeking_memory_pool-1 copies of the cat
-                nseekingcats = self.seeking_memory_pool if not self.self_position_consideration else self.seeking_memory_pool - 1
-
-                # make nseekingcats copies of this cat
-                local_cats = [copy(cat) for i in range(nseekingcats)]
-                # alter their position
-                local_cats = [self._alter_position(c) for c in local_cats]
-
-                # in case self_position_consideration was true,
-                # the original cat has to be added now to local_cats
-                if self.self_position_consideration:
-                    local_cats.append(cat)
-
-                # Afterwards evaluate the fitness of all cats in that memory pool
-                local_fitness = [self._fitness(c.position) for c in local_cats]
-
-                # select a new cat based on their respective fitness
-                if self.minimize:
-                    local_fitness = [min(fit, self.fitmax)
-                                     for fit in local_fitness]
-                    local_probability = [abs(fitness - self.fitmax) / abs(self.fitmax - self.fitmin)
-                                         for fitness in local_fitness]
-                else:
-                    local_fitness = [max(fit, self.fitmin)
-                                     for fit in local_fitness]
-                    local_probability = [fitness - self.fitmin / abs(self.fitmax - self.fitmin)
-                                         for fitness in local_fitness]
-
-                norm_prob = local_probability / \
-                    np.array(local_probability).sum()
-                swap_cats.append(
-                    (cat, np.random.choice(local_cats, p=norm_prob)))
-
-            for oldcat, newcat in swap_cats:
-                self._population.remove(oldcat)
-                self._population.append(newcat)
-
-            # get best cat currently in population
-            def key(c): return self._fitness(c.position)
-            self.bestcat = min(self._population, key=key) if self.minimize else max(
-                self._population, key=key)
-
-            self.res.best_progress.append(self._fitness(self.bestcat.position))
-            self.res.averaged_progress.append(
-                sum([self._fitness(c.position) for c in self._population]) / len(self._population))
-            self.iterations += 1
-
-        self.res.solution = self.bestcat.position
-        return self.res
-
-    def init_population(self):
-        """
-        write candidate vectors into self.population
-        """
-        raise NotImplementedError
 
     def _fitness(self, cat):
         self.res.function_calls['fitness'] += 1
-        return self.fitness(cat)
+        return self.fitness(cat.position)
 
     def fitness(self, cat):
         """
@@ -247,23 +267,23 @@ class CatSwarmOptimization(Algorithm):
 
 class BinaryCatSwarmOptimization(CatSwarmOptimization):
     """
-        Implementation of Cat Swarm Optimization Algorithm
+        Implementation of Binary Cat Swarm Optimization Algorithm
         Args:
     
             mixture_ratio(float): Mixture Ratio, which percentage of the cat population
                               should be in tracing mode
             seeking_memory_pool(int): Seeking Memory Pool,
                                     number of cat-copies in seeking mode (per seeking cat)
-            probability_mutation_operation(float): seeking mode can be represented as a binary mutation
-                                               in binary cat swarm optimization. So what once was
-                                               the seeking range per dimension has become the
-                                               probability of a mutation operation
+            probability_mutation_operation(float): seeking mode is a binary mutation in
+                                                   binary cat swarm optimization. So what once was
+                                                   the seeking range per dimension has become the
+                                                   probability of a mutation operation.
             count_of_dimensions_to_change(int): Counts of Dimensions to Change,
                                               meaning how many dimensions to mutate in seeking mode
             self_position_consideration(bool): Self Position Consideration, can the cats own position
                                             be a candidate for cat-copies in seeking mode?
-            velocity_factor(float): Constant velocity factor in tracing mode
-            max_velocity(Vactor or float): Max Velocity for a cat in tracing mode
+            velocity_factor(float): Arbitrary float value
+            max_velocity(Vector): 2D-Vector matrix according to velocity_factor
             fitmax(float): Max Value of the fitness function
             fitmin(float): Min Vlaue of the fitness function
             minimize(float): Default set to true, optimizer maximizes fitness when set to false
@@ -276,6 +296,22 @@ class BinaryCatSwarmOptimization(CatSwarmOptimization):
                                       seeking_memory_pool, count_of_dimensions_to_change,
                                       mixture_ratio, self_position_consideration, velocity_factor,
                                       fitmax, fitmin, population_size, minimize)
+
+    def alter_position(self, cat, probability_mutation_operation, count_of_dimensions_to_change):
+        """Method for altering a cats position if its a tracing cat
+
+        Args:
+            cat (Vector): position of cat
+            probability_mutation_operation (Vector): how far should the cat be looking into the
+                                                     solution space
+            count_of_dimensions_to_change (Int): how many dimensions to mutate in seeking mode
+
+        Returns:
+            cat (Vector): New position
+        """
+        raise NotImplementedError
+
+    def _init_result(self):
         self.res = Result()
         self.res.optimizer_settings['mixture_ratio'] = self.mixture_ratio
         self.res.optimizer_settings['seeking_memory_pool'] = self.seeking_memory_pool
@@ -292,17 +328,3 @@ class BinaryCatSwarmOptimization(CatSwarmOptimization):
         self.res.function_calls['fitness'] = 0
         self.res.function_calls['move'] = 0
         self.res.function_calls['alter_position'] = 0
-
-    def alter_position(self, cat, probability_mutation_operation, count_of_dimensions_to_change):
-        """Method for altering a cats position if its a tracing cat
-
-        Args:
-            cat (Vector): position of cat
-            probability_mutation_operation (Vector): how far should the cat be looking into the
-                                                     solution space
-            count_of_dimensions_to_change (Int): how many dimensions to mutate in seeking mode
-
-        Returns:
-            cat (Vector): New position
-        """
-        raise NotImplementedError
