@@ -51,7 +51,7 @@ class CatSwarmOptimization(Algorithm):
         self.initial_population = None
         self._population = None
         self.bestcat = None
-        
+
         self.res = Result()
 
     def optimize(self, max_iterations=np.inf, max_time=np.inf):
